@@ -2,13 +2,29 @@ import json
 import os
 import argparse, shutil
 
-from agent import GeoProUserAgent
-from prompt import GeoPromptVisuoThink
-from parse import Parser
-from execution import CodeExecutor
 from contextlib import redirect_stdout
-from utils_misc import tee_stdout, print_message
-from utils_llm import chat_vlm
+
+if __package__ is None or __package__ == "":  # pragma: no cover - script execution fallback
+    import os
+    import sys
+
+    _PKG_DIR = os.path.dirname(os.path.abspath(__file__))
+    if _PKG_DIR not in sys.path:
+        sys.path.insert(0, _PKG_DIR)
+
+    from agent import GeoProUserAgent  # type: ignore
+    from prompt import GeoPromptVisuoThink  # type: ignore
+    from parse import Parser  # type: ignore
+    from execution import CodeExecutor  # type: ignore
+    from utils_misc import tee_stdout, print_message  # type: ignore
+    from utils_llm import chat_vlm  # type: ignore
+else:
+    from .agent import GeoProUserAgent
+    from .prompt import GeoPromptVisuoThink
+    from .parse import Parser
+    from .execution import CodeExecutor
+    from .utils_misc import tee_stdout, print_message
+    from .utils_llm import chat_vlm
 from tqdm import tqdm
 from copy import deepcopy
 
@@ -82,6 +98,6 @@ def run_geo_task(task_input: str, output_dir: str, task_type: str, verbose: bool
 
 
 if __name__ == "__main__":
-    TASK_DIR = "dataset/geometry/Dataset_GeomVerse/test_geomverse_TEST_D2_B100_data_1"
-    OUTPUT_DIR = "outputs/geometry/Dataset_GeomVerse/test_geomverse_TEST_D2_B100_data_1"
+    TASK_DIR = "dataset/geometry/Dataset_GeomVerse/test_geomverse_TEST_D2_B100_data_9"
+    OUTPUT_DIR = "outputs/geometry/Dataset_GeomVerse/test_geomverse_TEST_D2_B100_data_9"
     run_geo_task(TASK_DIR, OUTPUT_DIR, task_type="visuothink", verbose=True)

@@ -4,10 +4,15 @@ from autogen.coding import CodeBlock
 from autogen.coding.jupyter import JupyterCodeExecutor, LocalJupyterServer
 import ast, re
 
-# add the tools directory to the path
-parent_dir = os.path.dirname(os.path.abspath(__file__))
-if parent_dir not in sys.path:
-    sys.path.insert(0, parent_dir)
+
+if __package__ is None or __package__ == "":  # pragma: no cover - script execution fallback
+    parent_dir = os.path.dirname(os.path.abspath(__file__))
+    if parent_dir not in sys.path:
+        sys.path.insert(0, parent_dir)
+    from tools_geo import *  # type: ignore
+else:
+    parent_dir = os.path.dirname(os.path.abspath(__file__))
+    from .tools_geo import *
 
 
 # for each dialogue, we will have a new code executor
