@@ -13,4 +13,6 @@ __all__ = [
     "tools_geo",
     "utils_llm",
     "utils_misc",
+    "hf_client",
+    "metrics",
 ]

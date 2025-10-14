@@ -124,8 +124,8 @@ class CodeExecutor:
             ]
         )
         ret = self.result_processor(execution_result)
-        if not init_env:
-            self._restart() # In case some code does not work, just restart the environment after every execution
+        if not init_env and ret[0] != 0:
+            self._restart() # restart only after failures to keep state between successful runs
         return ret
     
     def init_env(self, use_vision_tools):

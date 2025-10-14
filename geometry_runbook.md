@@ -71,12 +71,37 @@ python -m geometry.solver
 
 > Tip: keep `MODEL_API_TYPE` aligned with the provider name expected by Autogen (see `autogen/oai/client.py` for exact strings). All other environment variables (`MAX_REPLY`, etc.) can be set the same way as for navigation tasks.
 
-## 4. Post-run Evaluation
+## 4. Hugging Face модели (локальные/Hub)
+1. Убедитесь, что установлены зависимости: `pip install -r requirements.txt` (включая `transformers`, `accelerate`, `sentencepiece`, `bitsandbytes`). Для Flash Attention потребуется отдельная установка: `pip install flash-attn --no-build-isolation` (только для CUDA-GPU).
+2. Укажите тип API и модель:
+   ```bash
+   MODEL_API_TYPE=hf \
+   MODEL_NAME=TinyLlama/TinyLlama-1.1B-Chat-v1.0 \
+   HF_DEVICE=cpu \
+   HF_MAX_NEW_TOKENS=256 \
+   python -m geometry.solver
+   ```
+   Используйте `HF_MODEL_PATH`, если модель скачана локально, а также параметры `HF_DO_SAMPLE`, `HF_TOP_P`, `HF_TOP_K`, `HF_LOAD_IN_4BIT` и др. для тонкой настройки. Если модель не поддерживает изображения, в подсказку автоматически попадёт текстовая подпись `[Attached image(s): ...]`.
+3. После запуска в каждой папке задачи появится файл `metrics.json`, а агрегированная история сохранится под `outputs/geometry/stats/history.jsonl`. Благодаря этому можно вести журнал качества по моделям Hugging Face и Ollama.
+4. Для QLoRA/Flash-Attn режима на больших моделях установите GPU-зависимости и задайте:
+   ```bash
+   MODEL_API_TYPE=hf \
+   MODEL_NAME=Qwen/Qwen2-VL-7B-Instruct \
+   HF_DEVICE=cuda \
+   HF_LOAD_IN_4BIT=true \
+   HF_4BIT_COMPUTE_DTYPE=bfloat16 \
+   HF_ATTENTION_IMPL=flash_attention_2 \
+   MAX_REPLY=12 \
+   python -m geometry.solver
+   ```
+   Параметры `HF_4BIT_QUANT_TYPE`, `HF_4BIT_USE_DOUBLE_QUANT`, `HF_4BIT_COMPUTE_DTYPE` и др. можно настраивать через переменные окружения; Flash Attention автоматически откатится к SDPA, если библиотека `flash-attn` не доступна.
+
+## 5. Post-run Evaluation
 - Inspect `output.json` and `output.log` inside each task folder.
 - Run `scripts/analyze_geometry.py <outputs_dir>` to get success rate, average turns, and whether the final numeric answer matches the ground truth (within 1e-2 tolerance).
 - Example: `scripts/analyze_geometry.py outputs/geometry/llama3.2-vision`
 
-## 5. Common Adjustments
+## 6. Common Adjustments
 - To change the task set, edit the paths passed to `run_geo_task`.
 - Increase `MAX_REPLY` (export env var) if the model needs more steps.
 - For cloud runs, ensure your account has image-enabled endpoints; otherwise remove `<img>` tags by switching `_supports_image_messages` logic if necessary.

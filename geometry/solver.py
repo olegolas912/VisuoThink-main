@@ -3,6 +3,7 @@ import os
 import argparse, shutil
 
 from contextlib import redirect_stdout
+from pathlib import Path
 
 if __package__ is None or __package__ == "":  # pragma: no cover - script execution fallback
     import os
@@ -18,6 +19,7 @@ if __package__ is None or __package__ == "":  # pragma: no cover - script execut
     from execution import CodeExecutor  # type: ignore
     from utils_misc import tee_stdout, print_message  # type: ignore
     from utils_llm import chat_vlm  # type: ignore
+    from metrics import record_task_metrics  # type: ignore
 else:
     from .agent import GeoProUserAgent
     from .prompt import GeoPromptVisuoThink
@@ -25,11 +27,12 @@ else:
     from .execution import CodeExecutor
     from .utils_misc import tee_stdout, print_message
     from .utils_llm import chat_vlm
+    from .metrics import record_task_metrics
 from tqdm import tqdm
 from copy import deepcopy
 
 # the max reasoning steps / tree search depth
-from config import MAX_REPLY
+from config import MAX_REPLY, llm_config
 
 
 def aux_step(task_type: str) -> bool:
@@ -62,7 +65,6 @@ def run_geo_task(task_input: str, output_dir: str, task_type: str, verbose: bool
             # load the images
             query['image_path_code'] = os.path.join(output_dir, query['image_path_code'])
             print(query['image_path_code'])
-            images = []
             prompt_generator = GeoPromptVisuoThink()
             parser = Parser()
             executor = CodeExecutor(working_dir=task_directory)
@@ -93,8 +95,27 @@ def run_geo_task(task_input: str, output_dir: str, task_type: str, verbose: bool
         agent.executor.cleanup()
 
         # save the results
-        with open(os.path.join(task_directory, "output.json"), "w") as f:
+        output_json_path = os.path.join(task_directory, "output.json")
+        with open(output_json_path, "w") as f:
             json.dump(messages, f, indent=4, ensure_ascii=False)
+
+        config_entry = deepcopy((llm_config.get("config_list") or [{}])[0])
+        metrics_info = record_task_metrics(Path(task_directory), messages, config_entry)
+        metrics = metrics_info["metrics"]
+        print(
+            "[METRICS] Task {task} | success={success} | correct={correct} | answer={answer} | "
+            "ref={reference} | turns={turns} | thoughts={thoughts} | actions={actions}".format(
+                task=os.path.basename(task_directory),
+                success=metrics["success"],
+                correct=metrics["correct"],
+                answer=metrics["final_answer"] or "-",
+                reference=metrics.get("reference"),
+                turns=metrics["turns"],
+                thoughts=metrics["thought_messages"],
+                actions=metrics["action_messages"],
+            )
+        )
+        print(f"[METRICS] Saved per-task metrics to {metrics_info['metrics_path']} (history: {metrics_info['history_path']})")
 
 
 if __name__ == "__main__":

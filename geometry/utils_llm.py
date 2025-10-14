@@ -1,9 +1,10 @@
+import json
 import os
 import re
 import sys
 from pathlib import Path
 from time import sleep
-from typing import List, Tuple
+from typing import Dict, List, Tuple
 
 from autogen.agentchat.contrib.img_utils import gpt4v_formatter
 from autogen.oai.client import OpenAIWrapper
@@ -15,11 +16,14 @@ if __package__ is None or __package__ == "":  # pragma: no cover - script execut
     if _PKG_DIR not in sys.path:
         sys.path.insert(0, _PKG_DIR)
     from utils_misc import print_error  # type: ignore
+    from hf_client import HuggingFaceChatClient  # type: ignore
 else:
     from .utils_misc import print_error
+    from .hf_client import HuggingFaceChatClient
 
 TOKEN_G = 0
 TOKEN_USED = 0
+_HF_CLIENT_CACHE: Dict[str, "HuggingFaceChatClient"] = {}
 
 
 def _supports_image_messages(call_config: dict) -> bool:
@@ -39,6 +43,10 @@ def _supports_image_messages(call_config: dict) -> bool:
 
 def _is_ollama_config(call_config: dict) -> bool:
     return any((cfg or {}).get("api_type", "").lower().startswith("ollama") for cfg in call_config.get("config_list", []))
+
+
+def _is_hf_config(call_config: dict) -> bool:
+    return any((cfg or {}).get("api_type", "").lower() == "huggingface" for cfg in call_config.get("config_list", []))
 
 
 _IMG_TAG_RE = re.compile(r"<img\s+[^>]*src=['\"]([^'\"]+)['\"][^>]*>", re.IGNORECASE)
@@ -74,7 +82,8 @@ def chat_vlm(prompt: str, history_messages=None, temperature: float = 0.0, retry
         s_config['temperature'] = temperature
 
     use_ollama = _is_ollama_config(call_config)
-    use_image_formatter = _supports_image_messages(call_config)
+    use_hf = _is_hf_config(call_config)
+    use_image_formatter = not (use_ollama or use_hf) and _supports_image_messages(call_config)
 
     interval = 1
     for _ in range(retry_times):
@@ -83,7 +92,7 @@ def chat_vlm(prompt: str, history_messages=None, temperature: float = 0.0, retry
                 history_messages = []
             clean_messages = history_messages + [{"role": "user", "content": prompt}]
 
-            if use_ollama:
+            if use_ollama or use_hf:
                 dirty_messages = []
                 for mdict in clean_messages:
                     text, images = _extract_text_and_images(mdict['content'])
@@ -123,6 +132,16 @@ def chat_vlm(prompt: str, history_messages=None, temperature: float = 0.0, retry
                     reply_content = ''.join(content_parts)
                 else:
                     reply_content = response['message']['content']
+                messages = clean_messages + [{"role": "assistant", "content": reply_content}]
+                return reply_content, messages
+            elif use_hf:
+                cfg = call_config['config_list'][0]
+                cache_key = json.dumps(cfg, sort_keys=True)
+                client = _HF_CLIENT_CACHE.get(cache_key)
+                if client is None:
+                    client = HuggingFaceChatClient(cfg)
+                    _HF_CLIENT_CACHE[cache_key] = client
+                reply_content = client.generate(dirty_messages)
                 messages = clean_messages + [{"role": "assistant", "content": reply_content}]
                 return reply_content, messages
 
